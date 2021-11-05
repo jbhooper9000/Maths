@@ -1,0 +1,44 @@
+###########################################
+"DEFINE THE LINE/PLANE/HYPERPLANE"
+
+"c = constant 'y-intercept'"
+
+c = 38
+
+"w = defines the points of the hyperplane"
+
+w = [-17,-13,22,39]
+
+
+"DEFINE THE n-DIMENSIONAL POINTS TO BE CLASSIFIED"
+
+
+DataPoints = [[2,0,2,0], [10,-6,16,-6], [15,-5,20,-5], [11,-3,14,-3], [4,2,2,2], [16,-4,20,-4]]
+
+
+"DEFINE THE FUNCTION THAT * THE COEFFICIENTS WITH THE DATAPOINTS AND CLASSIFIES THEM EITHER 1" 
+" OR -1 "
+
+def line_function(w, a, c):
+    """
+    Parameters
+    ----------
+    w : Coefficients
+    a : Data points
+    c : Intercept
+
+    Returns
+    
+    if x > c output 1 else -1
+    """
+    "DOT PRODUCT OF COEFFICIENTS w AND DATAPOINTS a"
+    x=np.dot(w, a)
+    
+    "IF THE DOT PROUDCT IS GREATER THAN THE INTERCEPT c THEN RETURN 1, ELSE -1"
+    if x > c: 
+        return 1
+    else:
+        return -1
+
+for point in DataPoints:
+    print(point, line_function(w, point, c))
