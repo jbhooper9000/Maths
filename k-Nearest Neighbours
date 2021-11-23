@@ -1,0 +1,53 @@
+import numpy as np
+
+points = np.array([[2,0], [4,6], [10,5], [8,3], [6,-2], [12,4]]) 
+label = np.array(["A","B","C","X","Y","Z"])
+
+# 1 - Nearest Neighbour ..... Very Crude
+
+x = np.array([3, 2])
+
+y = points
+
+def nearestneighbour(x, y):
+    """
+    
+
+    Parameters
+    ----------
+    x : Point
+    y : Neighbours
+
+    Returns
+    Which Y is nearest neighbour
+    """
+    dist = np.sum((x-y)**2,1)
+    nn = np.where(dist==min(dist))
+    print(label[nn])
+
+
+nearestneighbour(x, y)
+
+# k - Nearest Neighbours
+
+def knearestneighbour(x, y, k):
+    """
+
+    Parameters
+    ----------
+    x : Point
+    y : Neighbors
+    k : Number of nearest neighbours
+
+    Returns
+    Which Y's are the k nearest neighbours
+    """
+    dist = np.sum((x-y)**2,1)
+    nnorder = np.argpartition(dist, k)
+    print(label[nnorder[:k]])
+    
+x = np.array([5,-2])
+
+knearestneighbour(x, y, 2)
+
+
