@@ -75,9 +75,9 @@ print('Test set', A_TestDF, sep='\n')
 
 'LINEAR REGRESSION'
 
-A_Train_LR_Fit = LR.fit(A_TrainDF.iloc[:, 0:2], A_TrainDF['Y'])
-A_Fit_LR_Coef = A_Train_LR_Fit.coef_
-A_Fit_LR_Intercept = A_Train_LR_Fit.intercept_
+A_LR_Fit = LR.fit(A_TrainDF.iloc[:, 0:2], A_TrainDF['Y'])
+A_LR_Fit_Coef = A_Train_LR_Fit.coef_
+A_LR_Fit_Intercept = A_Train_LR_Fit.intercept_
 
 #Define the line  of best fit as intersection with x^d+1 = 0, or rearrange 0 = ax + by + c 
 #                                                                        -by = ax + c
@@ -102,7 +102,7 @@ mesh = np.transpose(mesh)
 # Create the mesh colour array
 meshcol = []
 for k in range(len(mesh)):
-    if A_Fit_LR_Coef[0]*mesh[k,0]+A_Fit_LR_Coef[1]*mesh[k,1]+A_Fit_LR_Intercept > 0:
+    if A_LR_Fit_Coef[0]*mesh[k,0]+A_LR_Fit_Coef[1]*mesh[k,1]+A_LR_Fit_Intercept > 0:
         meshcol.append('lightcoral')
     else: meshcol.append('lightsteelblue')
 
@@ -125,11 +125,11 @@ plt.show()
 A_Train_Confusion = np.array([[0,0],[0,0]])
 for k in range(len(A_TrainDF)):
     if A_TrainDF.iloc[k,2] == 1 :
-        if A_Fit_LR_Coef[0]*A_TrainDF.iloc[k,0]+A_Fit_LR_Coef[1]*A_TrainDF.iloc[k,1]+A_Fit_LR_Intercept > 0:
+        if A_LR_Fit_Coef[0]*A_TrainDF.iloc[k,0]+A_LR_Fit_Coef[1]*A_TrainDF.iloc[k,1]+A_LR_Fit_Intercept > 0:
             A_Train_Confusion[0,0] += 1
         else: A_Train_Confusion[0,1] += 1
     else: 
-        if A_Fit_LR_Coef[0]*A_TrainDF.iloc[k,0]+A_Fit_LR_Coef[1]*A_TrainDF.iloc[k,1]+A_Fit_LR_Intercept < 0:
+        if A_LR_Fit_Coef[0]*A_TrainDF.iloc[k,0]+A_LR_Fit_Coef[1]*A_TrainDF.iloc[k,1]+A_LR_Fit_Intercept < 0:
             A_Train_Confusion[1,1] += 1
         else: A_Train_Confusion[1,0] += 1
 
@@ -143,11 +143,11 @@ print(A_Train_Error)
 A_Test_Confusion = np.array([[0,0],[0,0]])
 for k in range(len(A_TestDF)):
     if A_TestDF.iloc[k,2] == 1 :
-        if A_Fit_LR_Coef[0]*A_TestDF.iloc[k,0]+A_Fit_LR_Coef[1]*A_TestDF.iloc[k,1]+A_Fit_LR_Intercept > 0:
+        if A_LR_Fit_Coef[0]*A_TestDF.iloc[k,0]+A_LR_Fit_Coef[1]*A_TestDF.iloc[k,1]+A_LR_Fit_Intercept > 0:
             A_Test_Confusion[0,0] += 1
         else: A_Test_Confusion[0,1] += 1
     else: 
-        if A_Fit_LR_Coef[0]*A_TestDF.iloc[k,0]+A_Fit_LR_Coef[1]*A_TestDF.iloc[k,1]+A_Fit_LR_Intercept < 0:
+        if A_LR_Fit_Coef[0]*A_TestDF.iloc[k,0]+A_LR_Fit_Coef[1]*A_TestDF.iloc[k,1]+A_LR_Fit_Intercept < 0:
             A_Test_Confusion[1,1] += 1
         else: A_Test_Confusion[1,0] += 1
         
