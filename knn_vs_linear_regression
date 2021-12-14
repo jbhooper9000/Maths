@@ -76,8 +76,8 @@ print('Test set', A_TestDF, sep='\n')
 'LINEAR REGRESSION'
 
 A_LR_Fit = LR.fit(A_TrainDF.iloc[:, 0:2], A_TrainDF['Y'])
-A_LR_Fit_Coef = A_Train_LR_Fit.coef_
-A_LR_Fit_Intercept = A_Train_LR_Fit.intercept_
+A_LR_Fit_Coef = A_LR_Fit.coef_
+A_LR_Fit_Intercept = A_LR_Fit.intercept_
 
 #Define the line  of best fit as intersection with x^d+1 = 0, or rearrange 0 = ax + by + c 
 #                                                                        -by = ax + c
@@ -85,7 +85,7 @@ A_LR_Fit_Intercept = A_Train_LR_Fit.intercept_
 
 r = np.linspace(-5,8,n1*2)
 
-A_Line = -(A_Fit_LR_Coef[0] * r + A_Fit_LR_Intercept) / A_Fit_LR_Coef[1]
+A_Line = -(A_LR_Fit_Coef[0] * r + A_LR_Fit_Intercept) / A_LR_Fit_Coef[1]
 
 
 
