@@ -1,0 +1,288 @@
+import numpy as np
+import matplotlib.pyplot as plt
+plt.rcParams["figure.figsize"]=20,10
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.neighbors import KNeighborsRegressor
+LR = LinearRegression()
+knn1 = KNeighborsRegressor(n_neighbors=1)
+knn15 = KNeighborsRegressor(n_neighbors=15)
+
+'Training and Testing sample size'
+n1 = 100
+n2 = 10000
+
+'Define traing classification vectors of 1s and -1s'
+ones_train = [1 for i in range(n1)]
+minusones_train = [-1 for i in range(n1)]
+
+ones_test = [1 for i in range(n2)]
+minusones_test = [-1 for i in range(n2)]
+
+# SCENARIO A
+
+'Red Points'
+
+# Distribution
+A_Red_mean = np.array([3,3])
+A_Red_Cov = np.array([[4,0],[0,1]])
+
+# Defining the training and testing sets
+A_Red_Train = np.random.multivariate_normal(A_Red_mean, A_Red_Cov, n1)
+A_Red_Test = np.random.multivariate_normal(A_Red_mean, A_Red_Cov, n2)
+
+# Converting arrays to dataframes
+A_RedDF_Train = pd.DataFrame(A_Red_Train)
+A_RedDF_Test = pd.DataFrame(A_Red_Test)
+
+#Adding column to label Red points as 1
+A_RedDF_Train['Y'] = ones_train
+A_RedDF_Test['Y'] = ones_test
+
+
+
+'Blue Points'
+
+# Distribution
+A_Blue_mean = np.array([-2,-2])
+A_Blue_Cov = np.array([[1,0],[0,4]])
+
+# Defining the training and testing sets
+A_Blue_Train = np.random.multivariate_normal(A_Blue_mean, A_Blue_Cov, n1)
+A_Blue_Test = np.random.multivariate_normal(A_Blue_mean, A_Blue_Cov, n2)
+
+# Converting arrays to dataframes
+A_BlueDF_Train = pd.DataFrame(A_Blue_Train)
+A_BlueDF_Test = pd.DataFrame(A_Blue_Test)
+
+#Adding column to label Blue points as -1
+A_BlueDF_Train['Y'] = minusones_train
+A_BlueDF_Test['Y'] = minusones_test
+
+
+'Combine to make full sets of training and testing data'
+
+# Make full set of training data
+A_TrainDFList = [A_RedDF_Train, A_BlueDF_Train]
+A_TrainDF = pd.concat(A_TrainDFList)
+
+# and a full set of testing data
+A_TestDFList = [A_RedDF_Test, A_BlueDF_Test]
+A_TestDF = pd.concat(A_TestDFList)
+
+print('Training Set', A_TrainDF, sep='\n')
+print('Test set', A_TestDF, sep='\n')
+
+'LINEAR REGRESSION'
+
+A_Train_LR_Fit = LR.fit(A_TrainDF.iloc[:, 0:2], A_TrainDF['Y'])
+A_Fit_LR_Coef = A_Train_LR_Fit.coef_
+A_Fit_LR_Intercept = A_Train_LR_Fit.intercept_
+
+#Define the line  of best fit as intersection with x^d+1 = 0, or rearrange 0 = ax + by + c 
+#                                                                        -by = ax + c
+#                                                                          y = -(ax+c)/b
+
+r = np.linspace(-5,8,n1*2)
+
+A_Line = -(A_Fit_LR_Coef[0] * r + A_Fit_LR_Intercept) / A_Fit_LR_Coef[1]
+
+
+
+'REGRESSION PLOT'
+
+# Create a mesh grid
+minX, maxX, minY, maxY = -5, 8, -8, 6
+x = np.linspace(minX, maxX, n1)
+y = np.linspace(minY, maxY, n1)
+X, Y = np.meshgrid(x,y)
+mesh = np.vstack([X.ravel(), Y.ravel()])
+mesh = np.transpose(mesh)
+
+# Create the mesh colour array
+meshcol = []
+for k in range(len(mesh)):
+    if A_Fit_LR_Coef[0]*mesh[k,0]+A_Fit_LR_Coef[1]*mesh[k,1]+A_Fit_LR_Intercept > 0:
+        meshcol.append('lightcoral')
+    else: meshcol.append('lightsteelblue')
+
+
+#Define vector of colours for training set'
+plotcolours = ['red' if y > 0 else 'blue' for y in A_TrainDF['Y']]
+
+#Draw plot of generated points'
+fig, ax = plt.subplots()
+ax.scatter(X, Y, color=meshcol, facecolors='none')
+ax.scatter(A_RedDF_Train[0], A_RedDF_Train[1], color='red')
+ax.scatter(A_BlueDF_Train[0], A_BlueDF_Train[1], color='blue')
+#ax.plot(r, A_Line)
+ax.set_title('Training-Set Linear Regression Classifier', fontsize=20)
+plt.show()
+
+'LR PROBABILITY ESTIMATES'
+
+#Build a confusion matrix to display correctly and incorrectly classified points'
+A_Train_Confusion = np.array([[0,0],[0,0]])
+for k in range(len(A_TrainDF)):
+    if A_TrainDF.iloc[k,2] == 1 :
+        if A_Fit_LR_Coef[0]*A_TrainDF.iloc[k,0]+A_Fit_LR_Coef[1]*A_TrainDF.iloc[k,1]+A_Fit_LR_Intercept > 0:
+            A_Train_Confusion[0,0] += 1
+        else: A_Train_Confusion[0,1] += 1
+    else: 
+        if A_Fit_LR_Coef[0]*A_TrainDF.iloc[k,0]+A_Fit_LR_Coef[1]*A_TrainDF.iloc[k,1]+A_Fit_LR_Intercept < 0:
+            A_Train_Confusion[1,1] += 1
+        else: A_Train_Confusion[1,0] += 1
+
+print(A_Train_Confusion)
+A_Train_Accuracy = (A_Train_Confusion[0,0]+A_Train_Confusion[1,1])/np.sum(A_Train_Confusion)
+print(A_Train_Accuracy)
+A_Train_Error = 1-A_Train_Accuracy
+print(A_Train_Error)
+
+
+A_Test_Confusion = np.array([[0,0],[0,0]])
+for k in range(len(A_TestDF)):
+    if A_TestDF.iloc[k,2] == 1 :
+        if A_Fit_LR_Coef[0]*A_TestDF.iloc[k,0]+A_Fit_LR_Coef[1]*A_TestDF.iloc[k,1]+A_Fit_LR_Intercept > 0:
+            A_Test_Confusion[0,0] += 1
+        else: A_Test_Confusion[0,1] += 1
+    else: 
+        if A_Fit_LR_Coef[0]*A_TestDF.iloc[k,0]+A_Fit_LR_Coef[1]*A_TestDF.iloc[k,1]+A_Fit_LR_Intercept < 0:
+            A_Test_Confusion[1,1] += 1
+        else: A_Test_Confusion[1,0] += 1
+        
+print(A_Test_Confusion)
+A_Test_Accuracy = (A_Test_Confusion[0,0]+A_Test_Confusion[1,1])/np.sum(A_Test_Confusion)
+print(A_Test_Accuracy)
+A_Test_Error = 1-A_Test_Accuracy
+print(A_Test_Error)
+
+
+'K-Nearest Neighbours'
+
+# Fit K-NN models for 1 an 15 nearest neighbours
+A_KNN1_Fit = knn1.fit(A_TrainDF.iloc[:, 0:2], A_TrainDF['Y'])
+A_KNN15_Fit = knn15.fit(A_TrainDF.iloc[:, 0:2], A_TrainDF['Y'])
+
+#Create arrays of fitted values for training and test sets
+A_Train_KNN1_Predict = A_KNN1_Fit.predict(A_TrainDF.iloc[:, 0:2])
+A_Test_KNN1_Predict = A_KNN1_Fit.predict(A_TestDF.iloc[:, 0:2])
+
+A_Train_KNN15_Predict = A_KNN15_Fit.predict(A_TrainDF.iloc[:, 0:2])
+A_Test_KNN15_Predict = A_KNN15_Fit.predict(A_TestDF.iloc[:, 0:2])
+
+'K-NN:1 PLOT'
+
+KNN1meshcol = []
+for k in range(len(mesh)):
+    if A_KNN1_Fit.predict(mesh)[k] > 0:
+        KNN1meshcol.append('lightcoral')
+    else: KNN1meshcol.append('lightsteelblue')
+
+plotcolours = ['red' if y > 0 else 'blue' for y in A_TrainDF['Y']]
+
+#Draw plot of generated points'
+fig, ax = plt.subplots()
+ax.scatter(X, Y, color=KNN1meshcol, facecolors='none')
+ax.scatter(A_RedDF_Train[0], A_RedDF_Train[1], color='red')
+ax.scatter(A_BlueDF_Train[0], A_BlueDF_Train[1], color='blue')
+ax.set_title('Training-Set K-NN (K=1) Classifier', fontsize=20)
+plt.show()
+
+'K-NN:15 PLOT'
+
+KNN15meshcol = []
+for k in range(len(mesh)):
+    if A_KNN15_Fit.predict(mesh)[k] > 0:
+        KNN15meshcol.append('lightcoral')
+    else: KNN15meshcol.append('lightsteelblue')
+
+plotcolours = ['red' if y > 0 else 'blue' for y in A_TrainDF['Y']]
+
+#Draw plot of generated points'
+fig, ax = plt.subplots()
+ax.scatter(X, Y, color=KNN15meshcol, facecolors='none')
+ax.scatter(A_RedDF_Train[0], A_RedDF_Train[1], color='red')
+ax.scatter(A_BlueDF_Train[0], A_BlueDF_Train[1], color='blue')
+ax.set_title('Training-Set K-NN (K=15) Classifier', fontsize=20)
+plt.show()
+
+
+
+'KNN-1 PROBABILITY ESTIMATES'
+
+#Build a confusion matrix to display correctly and incorrectly classified points'
+A_Train_Confusion_KNN1 = np.array([[0,0],[0,0]])
+for k in range(len(A_TrainDF)):
+    if A_TrainDF.iloc[k,2] == 1 :
+        if  A_Train_KNN1_Predict[k] > 0:
+            A_Train_Confusion_KNN1[0,0] += 1
+        else: A_Train_Confusion_KNN1[0,1] += 1
+    else: 
+        if A_KNN1_Fit.predict(mesh)[k] < 0:
+            A_Train_Confusion_KNN1[1,1] += 1
+        else: A_Train_Confusion_KNN1[1,0] += 1
+
+print(A_Train_Confusion_KNN1)
+A_Train_Accuracy_KNN1 = (A_Train_Confusion_KNN1[0,0]+A_Train_Confusion_KNN1[1,1])/np.sum(A_Train_Confusion_KNN1)
+print(A_Train_Accuracy_KNN1)
+A_Train_Error_KNN1 = 1-A_Train_Accuracy_KNN1
+print(A_Train_Error_KNN1)
+
+
+A_Test_Confusion_KNN1 = np.array([[0,0],[0,0]])
+for k in range(len(A_TestDF)):
+    if A_TestDF.iloc[k,2] == 1 :
+        if  A_Test_KNN1_Predict[k] > 0:
+            A_Test_Confusion_KNN1[0,0] += 1
+        else: A_Test_Confusion_KNN1[0,1] += 1
+    else: 
+        if A_Test_KNN1_Predict[k]< 0:
+            A_Test_Confusion_KNN1[1,1] += 1
+        else: A_Test_Confusion_KNN1[1,0] += 1
+        
+print(A_Test_Confusion_KNN1)
+A_Test_Accuracy_KNN1 = (A_Test_Confusion_KNN1[0,0]+A_Test_Confusion_KNN1[1,1])/np.sum(A_Test_Confusion_KNN1)
+print(A_Test_Accuracy_KNN1)
+A_Test_Error_KNN1 = 1-A_Test_Accuracy_KNN1
+print(A_Test_Error_KNN1)
+
+
+'KNN-15 PROBABILITY ESTIMATES'
+
+#Build a confusion matrix to display correctly and incorrectly classified points'
+A_Train_Confusion_KNN15 = np.array([[0,0],[0,0]])
+for k in range(len(A_TrainDF)):
+    if A_TrainDF.iloc[k,2] == 1 :
+        if  A_Train_KNN15_Predict[k] > 0:
+            A_Train_Confusion_KNN15[0,0] += 1
+        else: A_Train_Confusion_KNN15[0,1] += 1
+    else: 
+        if A_Train_KNN15_Predict[k]  < 0:
+            A_Train_Confusion_KNN15[1,1] += 1
+        else: A_Train_Confusion_KNN15[1,0] += 1
+
+print(A_Train_Confusion_KNN15)
+A_Train_Accuracy_KNN15 = (A_Train_Confusion_KNN15[0,0]+A_Train_Confusion_KNN15[1,1])/np.sum(A_Train_Confusion_KNN15)
+print(A_Train_Accuracy_KNN15)
+A_Train_Error_KNN15 = 1-A_Train_Accuracy_KNN15
+print(A_Train_Error_KNN15)
+
+
+
+A_Test_Confusion_KNN15 = np.array([[0,0],[0,0]])
+for k in range(len(A_TestDF)):
+    if A_TestDF.iloc[k,2] == 1 :
+        if  A_Test_KNN15_Predict[k] > 0:
+            A_Test_Confusion_KNN15[0,0] += 1
+        else: A_Test_Confusion_KNN15[0,1] += 1
+    else: 
+        if A_Test_KNN15_Predict[k]< 0:
+            A_Test_Confusion_KNN15[1,1] += 1
+        else: A_Test_Confusion_KNN15[1,0] += 1
+        
+print(A_Test_Confusion_KNN15)
+A_Test_Accuracy_KNN15 = (A_Test_Confusion_KNN15[0,0]+A_Test_Confusion_KNN15[1,1])/np.sum(A_Test_Confusion_KNN15)
+print(A_Test_Accuracy_KNN15)
+A_Test_Error_KNN15 = 1-A_Test_Accuracy_KNN15
+print(A_Test_Error_KNN15)
