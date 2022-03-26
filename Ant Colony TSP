@@ -1,0 +1,113 @@
+# Ant Colony Optimisation
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import networkx as nx
+plt.rcParams["figure.figsize"]=15,11
+
+
+# Randomly draw n cities
+
+def citygen(n, spread):
+    mean = np.array([0,0])
+    sd = spread
+    
+    # Randomly generate n cities, distributed around 0 with defined spread
+    cities = np.random.multivariate_normal(mean, sd, n)
+
+    # Make a matrix of distances between each city
+    dist_mat = np.zeros((n,n))
+    for i in range(n):
+        for j in range(n):
+            dist_mat[i,j] = np.linalg.norm(cities[i]-cities[j])
+
+    # Matrix of values of 1/distance, keeping the leading diagonal = 0
+    vis_mat = np.reciprocal(dist_mat)
+    vis_mat[~np.isfinite(vis_mat)]=0
+    
+
+
+    # Plot Cities
+    def get_cmap(n, name='hsv'):
+        '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct 
+        RGB color; the keyword argument name must be a standard mpl colormap name.'''
+        return plt.cm.get_cmap(name, n)
+    cmap = get_cmap(n+1)
+    fig, ax = plt.subplots()
+    plt.xlabel('$x_1$');plt.ylabel('$x_2$');ax.axis('equal');      
+    G=nx.from_numpy_array(dist_mat)
+    nx.draw_networkx_edges(G,cities, width=0.5, edge_color='grey', ax=ax)
+    for i in range(n):
+        ax.scatter(cities[i,0],cities[i,1], label=f'{i}', color=cmap(i), s=400)
+    nx.draw_networkx_labels(G,cities, font_color='k')
+    plt.show()  
+    return(dist_mat,vis_mat, cities)
+
+spread = np.array([[4,0],[0,4]])
+
+city15 = citygen(15, spread)
+
+
+# Ant Colony
+
+alpha=2     # regulates the influence of pheromones
+beta=3      # regulates the influence of visibility
+rho=0.9     # evaporation of pheromone each tour
+Q=5         # Constant to be divided by length of tour
+I=100       # Number of tours
+
+def AntTour(m, city, alpha, beta, rho, Q, I):
+    city_dist = city[0]
+    city_vis = city[1]
+    n = city[0].shape[0]
+    ant_start = np.random.randint(0, n, m)      # Initialise random ant starting position
+    pher_mat = np.ones((I,n,n))                   # ..and the pheromone matrix
+    tau = np.zeros((n,n))
+    mindist = np.inf
+    minpath = np.array(n)
+    x=1
+    for x in range(I):
+       ant_path = np.c_[np.zeros(m)]               # Empty columnwise array, m rows of ants     
+       ant_path[:,0] = ant_start                   # Initial column set to starting positions for each ant
+       for p in range(1,n):                    # Each p-step is M ants moving to their next city
+            ant_step = np.zeros([m])
+            visited = np.empty([])
+            for q in range(m):                  # Each q-step is ant m assessing location and deciding next move
+                P = ant_path[q,p-1].astype(int)
+                visited = ant_path[q,:].astype(int)
+                prob_vec = np.zeros((n))
+                for i in range(n):              # This is a transition vector for ant m 
+                    if i in visited:
+                        prob_vec[i] = 0
+                    else:
+                        prob_vec[i] = np.dot((pher_mat[x-1][P,i]**alpha),(city_vis[P,i]**beta))/np.dot(np.delete(pher_mat[x-1][P], visited)**alpha,np.delete(city_vis[P], visited)**beta)
+                ant_step[q] = np.random.choice(n, 1, p=prob_vec) 
+                #print(prob_vec)               
+            ant_path = np.insert(ant_path, p, ant_step,axis=1)
+            del visited
+            
+       ant_path = ant_path.astype(int)
+       dist = []                               # Calculate Distances of each path
+       for i in range(m):
+           j=1
+           d = 0
+           for j in range(n):
+               d += city_dist[ant_path[i,j-1],ant_path[i,j]]              
+           dist.append(d)
+            
+       for i in range(m):
+           j=1
+           for j in range(n):
+               tau[ant_path[i,j-1],ant_path[i,j]] = Q/city_dist[ant_path[i,j-1],ant_path[i,j]]
+        
+       pher_mat[x] = (pher_mat[x-1]*rho)+tau
+       
+       if min(dist) < mindist:
+           mindist = min(dist)
+           minpath = ant_path[np.argmin(dist)]
+    return(pher_mat, minpath, mindist)
+
+Tour20x100 = AntTour(20, city15, alpha, beta, rho, Q, 100)
+
+Tour20x100
