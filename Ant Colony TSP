@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import networkx as nx
+
+
 plt.rcParams["figure.figsize"]=15,11
 
 
@@ -44,51 +46,53 @@ def citygen(n, spread):
     plt.show()  
     return(dist_mat,vis_mat, cities)
 
-spread = np.array([[4,0],[0,4]])
+# Define spread and number of cities 
 
-city15 = citygen(15, spread)
+spread = np.array([[1,0],[0,1]])
+
+n=15
+
+
+city15 = citygen(n, spread)
+
+
 
 
 # Ant Colony
-
-alpha=2     # regulates the influence of pheromones
-beta=3      # regulates the influence of visibility
-rho=0.9     # evaporation of pheromone each tour
-Q=5         # Constant to be divided by length of tour
-I=100       # Number of tours
 
 def AntTour(m, city, alpha, beta, rho, Q, I):
     city_dist = city[0]
     city_vis = city[1]
     n = city[0].shape[0]
-    ant_start = np.random.randint(0, n, m)      # Initialise random ant starting position
-    pher_mat = np.ones((I,n,n))                   # ..and the pheromone matrix
-    tau = np.zeros((n,n))
+    ant_start = np.random.randint(0, n, m)          # Initialise random ant starting position
+    pher_mat = np.ones((I,n,n))                     # ..and the pheromone matrix
+    
     mindist = np.inf
     minpath = np.array(n)
+    path = np.zeros((I,n,n))
     x=1
     for x in range(I):
-       ant_path = np.c_[np.zeros(m)]               # Empty columnwise array, m rows of ants     
-       ant_path[:,0] = ant_start                   # Initial column set to starting positions for each ant
-       for p in range(1,n):                    # Each p-step is M ants moving to their next city
+       tau = np.zeros((n,n)) 
+       ant_path = np.c_[np.zeros(m)]                # Empty columnwise array, m rows of ants     
+       ant_path[:,0] = ant_start                    # Initial column set to starting positions for each ant
+       for p in range(1,n):                         # Each p-step is M ants moving to their next city
             ant_step = np.zeros([m])
             visited = np.empty([])
-            for q in range(m):                  # Each q-step is ant m assessing location and deciding next move
+            for q in range(m):                      # Each q-step is ant m assessing location and deciding next move
                 P = ant_path[q,p-1].astype(int)
                 visited = ant_path[q,:].astype(int)
                 prob_vec = np.zeros((n))
-                for i in range(n):              # This is a transition vector for ant m 
+                for i in range(n):                  # This is a transition vector for ant m 
                     if i in visited:
                         prob_vec[i] = 0
                     else:
                         prob_vec[i] = np.dot((pher_mat[x-1][P,i]**alpha),(city_vis[P,i]**beta))/np.dot(np.delete(pher_mat[x-1][P], visited)**alpha,np.delete(city_vis[P], visited)**beta)
-                ant_step[q] = np.random.choice(n, 1, p=prob_vec) 
-                #print(prob_vec)               
+                
+                ant_step[q] = np.random.choice(n, 1, p=prob_vec)                       
             ant_path = np.insert(ant_path, p, ant_step,axis=1)
             del visited
-            
        ant_path = ant_path.astype(int)
-       dist = []                               # Calculate Distances of each path
+       dist = []                                    # Calculate Distances of each path
        for i in range(m):
            j=1
            d = 0
@@ -99,15 +103,60 @@ def AntTour(m, city, alpha, beta, rho, Q, I):
        for i in range(m):
            j=1
            for j in range(n):
-               tau[ant_path[i,j-1],ant_path[i,j]] = Q/city_dist[ant_path[i,j-1],ant_path[i,j]]
-        
+               tau[min(ant_path[i,j-1],ant_path[i,j]),max(ant_path[i,j-1],ant_path[i,j])] += Q/dist[i]
+       tau = tau + tau.T
        pher_mat[x] = (pher_mat[x-1]*rho)+tau
+       
+       for i in range(m):
+           j=1
+           for j in range(n):
+               path[x][ant_path[i,j-1],ant_path[i,j]] += 1
+       path[x] = path[x] + path[x].T - np.diag(path[x].diagonal())
+       
        
        if min(dist) < mindist:
            mindist = min(dist)
            minpath = ant_path[np.argmin(dist)]
-    return(pher_mat, minpath, mindist)
+           
+    return(pher_mat, minpath, mindist, path, tau, ant_path, dist)
 
-Tour20x100 = AntTour(20, city15, alpha, beta, rho, Q, 100)
+m=20        # Number of Ants
+alpha=2     # regulates the influence of pheromones >= 0
+beta=1      # regulates the influence of visibility >= 1
+rho=0.7     # evaporation of pheromone each tour [0,1]
+Q=1         # Constant to be divided by length of tour (Pheremone Quantity)
+I=50        # Number of tours
+        
 
-Tour20x100
+Tour20x50 = AntTour(m, city15, alpha, beta, rho, Q, I)
+    
+
+
+def AntAnimation(city, tour, filename, filetype):
+
+    def get_cmap(n, name='hsv'):
+        '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct 
+        RGB color; the keyword argument name must be a standard mpl colormap name.'''
+        return plt.cm.get_cmap(name, n)
+    cmap = get_cmap(n+1)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, aspect=1)
+    plt.xlabel('$x_1$');plt.ylabel('$x_2$');ax.axis('equal');      
+    G=nx.from_numpy_array(city[0])
+    #nx.draw_networkx_edges(G,city15[2], width=0.1, edge_color='grey', ax=ax)
+
+
+    def update(f):
+        ax.cla() #Clear ax
+        edge_col = [5/(city[0].shape[0])*tour[3][f][edge[0], edge[1]]for edge in G.edges()]
+        nx.draw_networkx_edges(G,city[2], width=0.3, edge_color='grey', ax=ax)
+        nx.draw_networkx_edges(G,city[2], width=edge_col, edge_color=edge_col, ax=ax)
+    
+        for i in range(n):
+            ax.scatter(city[2][i,0],city[2][i,1], label=f'{i}', color=cmap(i), s=400)
+            nx.draw_networkx_labels(G,city[2], font_color='k')
+    anim = animation.FuncAnimation(fig, update, frames=I, interval=10000/I)
+    anim.save(f'{filename}.{filetype}')
+    plt.close()
+
+AntAnimation(city15, Tour20x50, '15x20', 'mp4')
