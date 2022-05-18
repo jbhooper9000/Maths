@@ -1,17 +1,33 @@
-# Ant Colony Optimisation
+# Ant Colony Optimisation for Euclidian TSP
 
+%matplotlib inline
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import networkx as nx
-
-
 plt.rcParams["figure.figsize"]=15,11
+plt.rcParams["animation.html"] = "jshtml"
+plt.rcParams['animation.embed_limit'] = 2**128
+import networkx as nx
+def get_cmap(n, name='hsv'):
+        '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct 
+        RGB color; the keyword argument name must be a standard mpl colormap name.'''
+        return plt.cm.get_cmap(name, n)
 
 
 # Randomly draw n cities
 
 def citygen(n, spread):
+    """
+    Parameters
+    ----------
+    n : Number of Cities - Integer
+    spread : Bivariate spread of cities centered about the origin - np.array
+
+    Returns
+    -------
+    n points around the origin, their respective euclidian distances and a network plot
+
+    """
     mean = np.array([0,0])
     sd = spread
     
@@ -25,16 +41,13 @@ def citygen(n, spread):
             dist_mat[i,j] = np.linalg.norm(cities[i]-cities[j])
 
     # Matrix of values of 1/distance, keeping the leading diagonal = 0
-    vis_mat = np.reciprocal(dist_mat)
+    with np.errstate(divide='ignore'):
+        vis_mat = np.reciprocal(dist_mat)
     vis_mat[~np.isfinite(vis_mat)]=0
     
 
 
     # Plot Cities
-    def get_cmap(n, name='hsv'):
-        '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct 
-        RGB color; the keyword argument name must be a standard mpl colormap name.'''
-        return plt.cm.get_cmap(name, n)
     cmap = get_cmap(n+1)
     fig, ax = plt.subplots()
     plt.xlabel('$x_1$');plt.ylabel('$x_2$');ax.axis('equal');      
@@ -43,120 +56,333 @@ def citygen(n, spread):
     for i in range(n):
         ax.scatter(cities[i,0],cities[i,1], label=f'{i}', color=cmap(i), s=400)
     nx.draw_networkx_labels(G,cities, font_color='k')
-    plt.show()  
-    return(dist_mat,vis_mat, cities)
+    plt.show()
+    
+    # Function returns the matrix of distances between the cities, the visibilities and city coordinates 
+    return(dist_mat,vis_mat,cities)
+
 
 # Define spread and number of cities 
 
 spread = np.array([[1,0],[0,1]])
 
-n=15
+
+city15 = citygen(n=15, spread=spread)
+
+city30 = citygen(n=30, spread=spread)
+
+city100 = citygen(n=100, spread=spread)
 
 
-city15 = citygen(n, spread)
+# Ant System 
 
+m=20        # Number of Ants
+alpha=2     # regulates the influence of pheromones >= 0
+beta=2      # regulates the influence of visibility >= 0
+rho=0.5     # evaporation of pheromone each tour [0,1]
+I=50        # Number of tours
 
+def AntSystem(city, m=20, alpha=1, beta=1, rho=0.2, I=100):
+    """
+    
 
+    Parameters
+    ----------
+    m : Number of Ants
+    city : City of points defined with the citygen function
+    alpha : Influence of Pheromone >=0
+    beta : Influence of Visibility >=1
+    rho : Evaporation or Pheromone each tour [0,1] 
+    I : Number of Iterations
 
-# Ant Colony
+    Returns
+    -------
+    A solution to TSP problem for City, the minimum path found, the pheromone matrix, paths taken, distances
 
-def AntTour(m, city, alpha, beta, rho, Q, I):
+    """
     city_dist = city[0]
     city_vis = city[1]
     n = city[0].shape[0]
     ant_start = np.random.randint(0, n, m)          # Initialise random ant starting position
     pher_mat = np.ones((I,n,n))                     # ..and the pheromone matrix
     
-    mindist = np.inf
-    minpath = np.array(n)
-    path = np.zeros((I,n,n))
+    mindist = np.inf                                # Initial minimum distance set to infinity
+    minpath = np.array(n)                           # Declare the minimum array path
+    path = np.zeros((I,n,n))                        # Declare the global path matrix
     x=1
+    # TOUR LOOP #
     for x in range(I):
-       tau = np.zeros((n,n)) 
-       ant_path = np.c_[np.zeros(m)]                # Empty columnwise array, m rows of ants     
-       ant_path[:,0] = ant_start                    # Initial column set to starting positions for each ant
-       for p in range(1,n):                         # Each p-step is M ants moving to their next city
-            ant_step = np.zeros([m])
-            visited = np.empty([])
-            for q in range(m):                      # Each q-step is ant m assessing location and deciding next move
-                P = ant_path[q,p-1].astype(int)
-                visited = ant_path[q,:].astype(int)
-                prob_vec = np.zeros((n))
-                for i in range(n):                  # This is a transition vector for ant m 
+        tau = np.zeros((n,n))                            # Pheromone update Matrix
+        ant_path = np.c_[np.zeros(m)]                    # Empty columnwise array, m rows of ants     
+        ant_path[:,0] = ant_start                        # Initial column set to starting positions for each ant
+       
+       # m ANTS MOVE EACH p #
+        for p in range(1,n):                             # Each p-step is M ants moving to their next city
+            ant_step = np.zeros([m])                        # define a vector of the collective ant movements
+            visited = np.empty([])                          # Create a vector of visited cities initally empty
+            
+            # EACH q IS 1 ANTS MOVE #
+            for q in range(m):                              # Each q-step is ant m assessing location and deciding next move
+                P = ant_path[q,p-1].astype(int)                 # P is the current city ant m is located
+                visited = ant_path[q,:].astype(int)             # update the visited cities vector
+                prob_vec = np.zeros((n))            
+                for i in range(n):                              # This is a transition vector for ant m 
                     if i in visited:
                         prob_vec[i] = 0
                     else:
                         prob_vec[i] = np.dot((pher_mat[x-1][P,i]**alpha),(city_vis[P,i]**beta))/np.dot(np.delete(pher_mat[x-1][P], visited)**alpha,np.delete(city_vis[P], visited)**beta)
                 
-                ant_step[q] = np.random.choice(n, 1, p=prob_vec)                       
-            ant_path = np.insert(ant_path, p, ant_step,axis=1)
+                ant_step[q] = np.random.choice(n, 1, p=prob_vec) # The decision for ant m's next city added to vector                        
+            ant_path = np.insert(ant_path, p, ant_step,axis=1)   #  Column of new cities added 
             del visited
-       ant_path = ant_path.astype(int)
-       dist = []                                    # Calculate Distances of each path
-       for i in range(m):
-           j=1
-           d = 0
-           for j in range(n):
-               d += city_dist[ant_path[i,j-1],ant_path[i,j]]              
-           dist.append(d)
-            
-       for i in range(m):
-           j=1
-           for j in range(n):
-               tau[min(ant_path[i,j-1],ant_path[i,j]),max(ant_path[i,j-1],ant_path[i,j])] += Q/dist[i]
-       tau = tau + tau.T
-       pher_mat[x] = (pher_mat[x-1]*rho)+tau
        
-       for i in range(m):
-           j=1
-           for j in range(n):
-               path[x][ant_path[i,j-1],ant_path[i,j]] += 1
-       path[x] = path[x] + path[x].T - np.diag(path[x].diagonal())
+        # TOUR x COMPLETE - RECORD PATHS AND UPDATE # 
+        ant_path = ant_path.astype(int)              
+        dist = []                                    # Calculate Distances of each path
+        for i in range(m):
+            d = 0
+            for j in range(1,n):
+                d += city_dist[ant_path[i,j-1],ant_path[i,j]]
+            d += city_dist[ant_path[i,-1],ant_path[i,0]] 
+            dist.append(d)
+                                                    # Update the pheromone matrix
+        for i in range(m):
+            j=1
+            for j in range(n):
+                tau[min(ant_path[i,j-1],ant_path[i,j]),max(ant_path[i,j-1],ant_path[i,j])] += 1/dist[i]
+        tau = tau + tau.T
+        pher_mat[x] = (pher_mat[x-1]*rho)+tau
+                                                   # Record the path chosen by ant m on tour i
+        for i in range(m):
+            j=1
+            for j in range(n):
+                path[x][ant_path[i,j-1],ant_path[i,j]] += 1
+        path[x] = path[x] + path[x].T - np.diag(path[x].diagonal())
        
-       
-       if min(dist) < mindist:
-           mindist = min(dist)
-           minpath = ant_path[np.argmin(dist)]
+                                                   # Record the minimum distance found 
+        if min(dist) < mindist:
+            mindist = min(dist)
+            minpath = ant_path[np.argmin(dist)]
+        
            
     return(pher_mat, minpath, mindist, path, tau, ant_path, dist)
+    
+    
+# 15 cities, 20 ants, 100 iterations         
 
-m=100    # Number of Ants
-alpha=2     # regulates the influence of pheromones >= 0
-beta=2      # regulates the influence of visibility >= 1
-rho=0.9     # evaporation of pheromone each tour [0,1]
-Q=1         # Constant to be divided by length of tour (Pheremone Quantity)
-I=100        # Number of tours
-        
-
-Tour100x100 = AntTour(m, city15, alpha, beta, rho, Q, I)
+%time System15x20x100 = AntSystem(city15, m=20, alpha=2, beta=2, rho=0.5, I=100)
+print(System15x20x100[1], System15x20x100[2])
 
 
-def AntAnimation(city, tour, filename, filetype):
+# Increase the number of ants from 20 to 50
+
+%time System15x50x100 = AntSystem(city15, m=50, alpha=2, beta=2, rho=0.5, I=100)
+print(System15x50x100[1], System15x50x100[2])
+
+
+# Increase the number of tours from 100 to 200
+
+%time System15x20x200 = AntSystem(city15, m=20, alpha=2, beta=2, rho=0.5, I=200)
+print(System15x20x200[1], System15x20x200[2])
+
+
+
+
+
+
+# Animation function 
+
+from IPython.display import HTML
+from matplotlib.gridspec import GridSpec
+
+
+def AntAnimation(city, tour):
     I = len(tour[0])
     n = len(city[2])
-    def get_cmap(n, name='hsv'):
-        '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct 
-        RGB color; the keyword argument name must be a standard mpl colormap name.'''
-        return plt.cm.get_cmap(name, n)
+    m = len(tour[5])
+    writergif = animation.PillowWriter(fps=I/10)
+    # Draw base plot    
     cmap = get_cmap(n+1)
-    fig = plt.figure()
-    ax = fig.add_subplot(111, aspect=1)
-    plt.xlabel('$x_1$');plt.ylabel('$x_2$');ax.axis('equal');      
+    # Setting up the plot surface
+    fig = plt.figure(figsize=(30, 20));gs = GridSpec(nrows=2, ncols=2, width_ratios=[3,1])
+    ax0 = fig.add_subplot(gs[:, 0]);ax1 = fig.add_subplot(gs[0, 1]);ax2 = fig.add_subplot(gs[1, 1])
+    ax1.set_box_aspect(1);ax2.set_box_aspect(1)
     G=nx.from_numpy_array(city[0])
-    #nx.draw_networkx_edges(G,city15[2], width=0.1, edge_color='grey', ax=ax)
 
-
+    # Animate the paths chosen for each iteration
     def update(f):
-        ax.cla() #Clear ax
-        edge_col = [5/(city[0].shape[0]+len(tour[5]))*tour[3][f][edge[0] , edge[1]]for edge in G.edges()]
-        nx.draw_networkx_edges(G,city[2], width=0.3, edge_color='grey', ax=ax)
-        nx.draw_networkx_edges(G,city[2], width=edge_col, edge_color=edge_col, ax=ax)
-    
+        ax0.clear();ax1.clear();ax2.clear() #Clear ax
+        ax0.set_xlabel('$x_1$', fontsize=18);ax0.set_ylabel('$x_2$', fontsize=18);ax0.axis('equal')
+        ax0.set_title(f'Global Shortest Path: {tour[1]} \n Distance: {tour[2]}', fontsize=20)
+        ax1.set_title('Count Matrix', fontsize=20);ax2.set_title('Pheromone Matrix', fontsize=20)
+        edge_wid = [5*(np.log(m+n+I)/(m+n+I))*tour[3][f][edge[0] , edge[1]]for edge in G.edges()]
+        nx.draw_networkx_edges(G,city[2], width=0.3, edge_color='grey', ax=ax0)
+        nx.draw_networkx_edges(G,city[2], width=edge_wid, edge_color=edge_wid, ax=ax0)
+        ax1.imshow(tour[3][f])
+        ax2.imshow(tour[0][f])
+        for (i, j), z in np.ndenumerate(tour[3][f]):
+            ax1.text(j, i, '{:.0f}'.format(z), ha='center', va='center')
+        for (i, j), z in np.ndenumerate(tour[0][f]):
+            ax2.text(j, i, '{:0.1f}'.format(z), ha='center', va='center')
         for i in range(n):
-            ax.scatter(city[2][i,0],city[2][i,1], label=f'{i}', color=cmap(i), s=400)
-            nx.draw_networkx_labels(G,city[2], font_color='k')
-    anim = animation.FuncAnimation(fig, update, frames=I, interval=10000/I)
-    anim.save(f'{filename}.{filetype}')
+            ax0.scatter(city[2][i,0],city[2][i,1], label=f'{i}', color=cmap(i), s=400)
+            nx.draw_networkx_labels(G,city[2], font_color='k', ax=ax0)
     plt.close()
+    anim = animation.FuncAnimation(fig, update, frames=I, interval=10000/I)
+    out = HTML(anim.to_jshtml())
+    return(out)
 
-AntAnimation(city15, Tour100x100, '15x100', 'mp4')
+
+
+# 100 iterations
+AntAnimation(city15, System15x20x100)
+
+
+# 50 ants
+AntAnimation(city15, System15x50x100)
+
+
+# 200 iterations
+AntAnimation(city15, System15x20x200)
+
+
+# Ant System on city30 with 30 ants
+
+%time System30x30x100 = AntSystem(city30, m=30, alpha=2, beta=2, rho=0.5, I=100)
+print(System30x30x100[1], System30x30x100[2])
+
+AntAnimation(city30, System30x30x100)
+
+
+def nnheuristic(city):
+    """Nearest neighbor algorithm.
+    Returns the path and cost of the found solution
+    """
+    n = city[0].shape[0]
+    start = np.random.randint(0, n)
+    path = [start]
+    d = 0
+    mask = np.ones(n, dtype=bool)  # boolean values indicating which 
+                                   # locations have not been visited
+    mask[start] = False
+
+    for i in range(n-1):
+        last = path[-1]
+        next_ind = np.argmin(city[0][last][mask]) # find minimum of remaining locations
+        next_loc = np.arange(n)[mask][next_ind] # convert to original location
+        path.append(next_loc)
+        mask[next_loc] = False
+    for j in range(1,n):
+        d += city[0][path[j-1],path[j]]
+    d += city[0][path[-1],path[0]]
+    
+    
+    return path, d
+
+nnheuristic(city15)
+
+
+# Ant Colony System
+
+m=20        # Number of Ants
+beta=2      # regulates the influence of visibility over pheromone >= 1
+alpha= 0.5  # Global pheromone update parameter [0,1]
+r0=0.5      # Psuedo-random parameter (Exploration vs Exploitation) [0,1]
+rho=0.5     # evaporation of pheromone each tour [0,1]
+I=50        # Number of tours
+
+def AntColony(city, m=20, beta=2, alpha=0.25, r0=0.5, rho=0.25, I=50):
+    city_dist = city[0]
+    city_vis = city[1]
+    n = city[0].shape[0]
+    h = nnheuristic(city)[1]
+    tau_0 = 1/(n*h)
+    ant_start = np.random.randint(0, n, m)          # Initialise random ant starting position
+    pher_mat = np.ones((I,n,n))                     # ..and the pheromone matrix
+    
+    mindist = np.inf                                # Initial minimum distance set to infinity
+    minpath = np.array(n)                           # Declare the minimum array path
+    path = np.zeros((I,n,n))                        # Declare the global path matrix
+    x=1
+    for x in range(I):
+        tau = np.zeros((n,n)) 
+        ant_path = np.c_[np.zeros(m)]                # Empty columnwise array, m rows of ants     
+        ant_path[:,0] = ant_start                    # Initial column set to starting positions for each ant
+        for p in range(1,n):                         # Each p-step is M ants moving to their next city
+            ant_step = np.zeros([m])
+            deltau = np.zeros((n,n))
+            visited = np.empty([])
+            for q in range(m):                      # Each q-step is ant m assessing location and deciding next move
+                P = ant_path[q,p-1].astype(int)
+                visited = ant_path[q,:].astype(int)
+                prob_vec = np.zeros((n))
+                r = np.random.uniform(size=1)
+                choice = np.zeros((n))
+                for i in range(n):                  # This is a transition vector for ant m 
+                    if i in visited:
+                        prob_vec[i] = 0
+                        choice[i] = 0
+                    else:
+                        prob_vec[i] = np.dot((pher_mat[x-1][P,i]),(city_vis[P,i]**beta))/np.dot(np.delete(pher_mat[x-1][P], visited),np.delete(city_vis[P], visited)**beta)
+                        choice[i] = np.dot((pher_mat[x-1][P,i]),(city_vis[P,i]**beta))
+                if r <= r0:
+                    ant_step[q] = np.argmax(choice)
+                else:
+                    ant_step[q] = np.random.choice(n, 1, p=prob_vec)
+                                       
+            ant_path = np.insert(ant_path, p, ant_step,axis=1)
+            local = ant_path.astype(int)
+            for i in range(m):
+                deltau[min(local[i,p-1],local[i,p]),max(local[i,p-1],local[i,p])] = tau_0
+            pher_mat[x] = (pher_mat[x-1]*(1-rho))+rho*deltau
+            del visited, deltau
+        ant_path = ant_path.astype(int)
+        dist = []                                    # Calculate Distances of each path
+        for i in range(m):
+            d = 0
+            for j in range(1,n):
+                d += city_dist[ant_path[i,j-1],ant_path[i,j]]
+            d += city_dist[ant_path[i,-1],ant_path[i,0]] 
+            dist.append(d)
+
+                                                   # Record the path chosen by ant m on tour i
+        for i in range(m):
+            j=1
+            for j in range(n):
+                path[x][ant_path[i,j-1],ant_path[i,j]] += 1
+        path[x] = path[x] + path[x].T - np.diag(path[x].diagonal())
+       
+                                                   # Record the minimum distance found 
+        if min(dist) < mindist:
+            mindist = min(dist)
+            minpath = ant_path[np.argmin(dist)]
+
+                                                    # Update the pheromone matrix
+        j=1
+        for j in range(n):
+            tau[min(minpath[j-1],minpath[j]),max(minpath[j-1],minpath[j])] += 1/mindist
+        tau = tau + tau.T
+        pher_mat[x] = (pher_mat[x-1]*(1-alpha))+alpha*tau
+           
+    return(pher_mat, minpath, mindist, path, tau, ant_path, dist)
+    
+    
+# Now using the colony system on city15
+
+%time Colony15x20x100 = AntColony(city15, m=20, beta=2, alpha=0.1, r0=0.5, rho=0.1, I=100)
+print(Colony15x20x100[1], Colony15x20x100[2])
+
+AntAnimation(city15, Colony15x20x100)
+
+
+# ... on city30 with 30 ants
+
+%time Colony30x30x100 = AntColony(city30, m=30, beta=2, alpha=0.1, r0=0.5, rho=0.1, I=100)
+print(Colony30x30x100[1], Colony30x30x100[2])
+
+AntAnimation(city30, Colony30x30x100)
+
+
+
+
+
